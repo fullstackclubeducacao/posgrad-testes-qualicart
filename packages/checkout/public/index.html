@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QualiCart — Checkout</title>
+  </head>
+  <body>
+    <main>
+      <h1>QualiCart</h1>
+
+      <section aria-labelledby="titulo-itens">
+        <h2 id="titulo-itens">Itens do carrinho</h2>
+        <ul>
+          <li>Camiseta — R$ 59,90 x 2</li>
+          <li>Caneca — R$ 39,90 x 1</li>
+        </ul>
+      </section>
+
+      <form id="form-checkout">
+        <p>
+          <label for="cupom">Cupom de desconto</label>
+          <input id="cupom" name="cupom" type="text" placeholder="Ex.: DESCONTO10" />
+        </p>
+
+        <p>
+          <label for="cep">CEP de entrega</label>
+          <input id="cep" name="cep" type="text" placeholder="00000-000" />
+        </p>
+
+        <p>
+          <button type="submit">Finalizar</button>
+        </p>
+      </form>
+
+      <section aria-live="polite">
+        <h2>Resumo</h2>
+        <pre id="resultado">Preencha e clique em Finalizar.</pre>
+      </section>
+    </main>
+
+    <script>
+      const form = document.getElementById('form-checkout');
+      const saida = document.getElementById('resultado');
+
+      const ITENS = [
+        { sku: 'CAM-001', nome: 'Camiseta', precoUnitario: 59.9, quantidade: 2 },
+        { sku: 'CAN-001', nome: 'Caneca', precoUnitario: 39.9, quantidade: 1 },
+      ];
+
+      form.addEventListener('submit', async (evento) => {
+        evento.preventDefault();
+
+        const codigoCupom = document.getElementById('cupom').value.trim();
+        const cep = document.getElementById('cep').value.trim();
+
+        const corpo = {
+          itens: ITENS,
+          cupom: codigoCupom
+            ? { tipo: 'percentual', valor: 10 }
+            : null,
+          cep,
+        };
+
+        try {
+          const resposta = await fetch('/checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(corpo),
+          });
+          const dados = await resposta.json();
+          saida.textContent =
+            'Subtotal: R$ ' + dados.subtotal.toFixed(2) + '\n' +
+            'Desconto: R$ ' + dados.desconto.toFixed(2) + '\n' +
+            'Frete: R$ ' + dados.frete.toFixed(2) + '\n' +
+            'Total: R$ ' + dados.total.toFixed(2);
+        } catch {
+          saida.textContent = 'Erro ao processar o checkout.';
+        }
+      });
+    </script>
+  </body>
+</html>
