@@ -5,6 +5,9 @@ reports/
 .stryker-tmp/
 test-results/
 playwright-report/
+.promptfoo/
+promptfoo-errors.log
+output.json
 *.log
 .DS_Store
 .env

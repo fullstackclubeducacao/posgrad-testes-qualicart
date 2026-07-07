@@ -68,6 +68,12 @@ export default tseslint.config(
       'max-depth': ['warn', { max: 3 }],
       'max-lines-per-function': ['warn', { max: 40 }],
       'max-params': ['warn', { max: 4 }],
+      // Argumentos/variáveis prefixados com _ são intencionalmente não usados
+      // (ex.: parâmetro exigido por uma assinatura mas ignorado no corpo).
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
     },
   },
   {
