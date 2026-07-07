@@ -14,6 +14,16 @@ export type ResultadoCheckout = {
 };
 
 /**
+ * Arredonda um valor monetario para 2 casas decimais (centavos).
+ *
+ * Dinheiro NUNCA deve carregar erro de ponto flutuante: sem este
+ * arredondamento, valores como 119.8 * 0.10 produzem 11.980000000000004.
+ */
+export function arredondarMoeda(valor: number): number {
+  return Math.round(valor * 100) / 100;
+}
+
+/**
  * Processa um checkout completo e devolve o detalhamento de valores.
  *
  * Observacao: esta funcao foi escrita de forma deliberadamente "monolitica"
@@ -83,9 +93,9 @@ export function processarCheckout(
   void observacao;
 
   return {
-    subtotal,
-    desconto,
-    frete,
-    total,
+    subtotal: arredondarMoeda(subtotal),
+    desconto: arredondarMoeda(desconto),
+    frete: arredondarMoeda(frete),
+    total: arredondarMoeda(total),
   };
 }
