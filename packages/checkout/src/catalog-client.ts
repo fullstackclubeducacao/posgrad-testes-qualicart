@@ -33,12 +33,28 @@ export class ProdutoNaoEncontradoError extends Error {
 }
 
 /**
+ * Opcoes da busca de produto. `timeoutMs`, quando fornecido, aborta o fetch
+ * apos o prazo (via AbortController) -- usado pelo caminho resiliente do
+ * checkout para nao ficar preso a uma dependencia lenta.
+ */
+export type BuscarProdutoOpcoes = {
+  timeoutMs?: number;
+};
+
+/**
  * Busca um produto no servico de catalogo por HTTP.
  *
+ * A assinatura antiga (`buscarProduto(sku)`) continua valida; o segundo
+ * parametro e' opcional e retrocompativel.
+ *
  * @throws {ProdutoNaoEncontradoError} quando o catalogo responde 404.
- * @throws {Error} para qualquer outra resposta nao-2xx (ex.: 503 chaos).
+ * @throws {Error} para qualquer outra resposta nao-2xx (ex.: 503 chaos) ou
+ *   quando o timeout aborta a chamada (`AbortError`).
  */
-export async function buscarProduto(sku: string): Promise<Produto> {
+export async function buscarProduto(
+  sku: string,
+  opcoes: BuscarProdutoOpcoes = {},
+): Promise<Produto> {
   return tracer.startActiveSpan(
     'GET /produtos/:sku',
     { kind: SpanKind.CLIENT },
@@ -51,10 +67,19 @@ export async function buscarProduto(sku: string): Promise<Produto> {
       const headers: Record<string, string> = {};
       propagation.inject(context.active(), headers);
 
+      // Timeout opcional: aborta o fetch se o catalogo demorar demais.
+      const { timeoutMs } = opcoes;
+      const controlador =
+        timeoutMs !== undefined ? new AbortController() : undefined;
+      const timer =
+        controlador !== undefined
+          ? setTimeout(() => controlador.abort(), timeoutMs)
+          : undefined;
+
       try {
         const resposta = await fetch(
           `${CATALOG_URL}/produtos/${encodeURIComponent(sku)}`,
-          { headers },
+          { headers, signal: controlador?.signal },
         );
         span.setAttribute('http.response.status_code', resposta.status);
 
@@ -77,6 +102,9 @@ export async function buscarProduto(sku: string): Promise<Produto> {
         });
         throw erro;
       } finally {
+        if (timer !== undefined) {
+          clearTimeout(timer);
+        }
         span.end();
       }
     },

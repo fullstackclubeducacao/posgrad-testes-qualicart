@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { trace, metrics, SpanKind, SpanStatusCode } from '@opentelemetry/api';
-import { finalizarCheckout } from './checkout-service.ts';
+import { finalizarCheckout, CatalogoIndisponivelError } from './checkout-service.ts';
 import { PedidoRepositoryMemoria } from './pedido-repository.ts';
 import { ProdutoNaoEncontradoError } from './catalog-client.ts';
 import type { CheckoutInput } from './checkout-service.ts';
@@ -113,6 +113,11 @@ const server = http.createServer(async (req, res) => {
           span.end();
           if (erro instanceof ProdutoNaoEncontradoError) {
             enviarJson(res, 422, { erro: erro.message });
+            return;
+          }
+          // Caminho resiliente falhou fechado apos timeout + retry: 503.
+          if (erro instanceof CatalogoIndisponivelError) {
+            enviarJson(res, 503, { erro: erro.message });
             return;
           }
           enviarJson(res, 502, { erro: 'Falha ao consultar o catalogo' });
