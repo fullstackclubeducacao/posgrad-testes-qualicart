@@ -101,9 +101,8 @@ jobs:
           "packages/checkout/test/**/*.test.ts"
 
   # ---------------------------------------------------------------------------
-  # GATE 4 (caro) - BDD / Cucumber
-  # Testes de comportamento (E2E) por último: são os mais lentos e caros.
-  # Depende de `test` para só rodar quando a unidade + cobertura já passaram.
+  # GATE 4 (médio) - BDD / Cucumber
+  # Comportamento em linguagem de negócio. Depende de `test`.
   # ---------------------------------------------------------------------------
   bdd:
     name: BDD (Cucumber)
@@ -117,3 +116,57 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run bdd
+
+  # ---------------------------------------------------------------------------
+  # Módulo 2 — gates do distribuído. Rodam após a unidade (needs: [test]).
+  # ---------------------------------------------------------------------------
+
+  # GATE 5 - Contract testing (Pact): consumidor gera o pact e o provedor o
+  # verifica. Barato e sem subir o sistema inteiro — pega quebras de contrato.
+  contract:
+    name: Contract tests (Pact)
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+      - run: npm ci
+      - run: npm run test:contract
+
+  # GATE 6 - Integração com testcontainers. O runner ubuntu já traz Docker,
+  # então o Postgres real sobe em contêiner descartável.
+  integration:
+    name: Integration (testcontainers)
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+      - run: npm ci
+      - run: npm run test:integration
+
+  # GATE 7 (caro) - E2E com Playwright. Só a jornada crítica de checkout.
+  # Instala o browser e sobe os serviços via webServer do próprio Playwright.
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+  # Nota: carga (k6) e chaos NÃO são gates por-PR — são experimentos sob
+  # demanda (rodados manualmente / em ambiente parecido com produção), como
+  # discutido no Módulo 2. Ver load/ e chaos/.
