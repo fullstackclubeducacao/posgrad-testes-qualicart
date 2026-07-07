@@ -17,6 +17,15 @@ export default defineConfig({
   workers: 1,
   reporter: 'list',
 
+  // Visual regression: tolera micro-diferencas de renderizacao (antialiasing,
+  // sub-pixel) mas pega mudancas visuais reais. Combinado com animacoes off
+  // e ambiente consistente (chromium fixo), doma a fragilidade das capturas.
+  expect: {
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.01,
+    },
+  },
+
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
