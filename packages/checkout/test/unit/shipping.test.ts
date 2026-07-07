@@ -36,4 +36,16 @@ describe('calcularFrete', () => {
     assert.equal(calcularFrete(50, '01001000'), 15);
     assert.equal(calcularFrete(150, '70000000'), 30);
   });
+
+  it('libera frete gratis no subtotal EXATAMENTE no limiar (R$200)', () => {
+    // Fronteira: a regra e "frete gratis a partir de R$200" (>=), entao em
+    // exatamente R$200 o frete deve ser zero, independentemente da regiao.
+    assert.equal(calcularFrete(200, '01001000'), 0);
+    assert.equal(calcularFrete(200, '99000000'), 0);
+  });
+
+  it('ainda cobra frete logo abaixo do limiar (R$199,99)', () => {
+    // O outro lado da fronteira: um centavo abaixo NAO libera frete gratis.
+    assert.equal(calcularFrete(199.99, '01001000'), 15);
+  });
 });

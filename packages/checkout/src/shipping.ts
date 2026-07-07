@@ -10,7 +10,7 @@ const LIMIAR_FRETE_GRATIS = 200;
  *   digito do CEP como aproximacao grosseira de distancia.
  */
 export function calcularFrete(subtotal: number, cep: string): number {
-  if (subtotal > LIMIAR_FRETE_GRATIS) {
+  if (subtotal >= LIMIAR_FRETE_GRATIS) {
     return 0;
   }
 
