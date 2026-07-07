@@ -2,23 +2,41 @@
   "name": "qualicart",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "engines": {
     "node": ">=24"
   },
   "scripts": {
     "start": "node packages/checkout/src/server.ts",
-    "test": "node --test \"packages/checkout/test/**/*.test.ts\"",
-    "test:coverage": "node --test --experimental-test-coverage \"packages/checkout/test/**/*.test.ts\"",
+    "start:catalog": "node packages/catalog/src/server.ts",
+    "start:checkout": "node packages/checkout/src/server.ts",
+    "test": "node --test \"packages/*/test/unit/**/*.test.ts\"",
+    "test:coverage": "node --test --experimental-test-coverage \"packages/*/test/unit/**/*.test.ts\"",
+    "test:contract": "node --test \"packages/*/test/contract/**/*.ts\"",
+    "test:integration": "node --test \"packages/checkout/test/integration/**/*.ts\"",
+    "test:property": "node --test \"packages/checkout/test/property/**/*.ts\"",
+    "test:e2e": "playwright test",
+    "test:mutation": "stryker run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "bdd": "cucumber-js"
   },
+  "dependencies": {
+    "pg": "^8.22.0"
+  },
   "devDependencies": {
     "@cucumber/cucumber": "^11.2.0",
     "@eslint/js": "^9.20.0",
+    "@pact-foundation/pact": "^17.0.1",
+    "@playwright/test": "^1.61.1",
+    "@stryker-mutator/core": "^9.6.1",
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.20.0",
     "eslint": "^9.20.0",
+    "fast-check": "^4.8.0",
+    "testcontainers": "^12.0.4",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.24.0"
   }

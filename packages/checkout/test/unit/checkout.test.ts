@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { processarCheckout } from '../src/checkout.ts';
-import type { ItemCarrinho } from '../src/cart.ts';
+import { processarCheckout } from '../../src/checkout.ts';
+import type { ItemCarrinho } from '../../src/cart.ts';
 
 const ITENS: ItemCarrinho[] = [
   { sku: 'CAM-001', nome: 'Camiseta', precoUnitario: 59.9, quantidade: 2 },

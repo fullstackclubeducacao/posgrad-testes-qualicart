@@ -1,26 +1,22 @@
-// Servidor HTTP do QualiCart, usando apenas modulos nativos do Node.
+// Servidor HTTP do QualiCart (servico de checkout), usando modulos nativos.
+//
+// Agora o checkout consome o servico de catalogo por HTTP para resolver precos
+// (via checkout-service) e persiste o pedido num PedidoRepository.
 
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { processarCheckout } from './checkout.ts';
-import type { ItemCarrinho } from './cart.ts';
-import type { Cupom } from './coupon.ts';
+import { finalizarCheckout } from './checkout-service.ts';
+import { PedidoRepositoryMemoria } from './pedido-repository.ts';
+import { ProdutoNaoEncontradoError } from './catalog-client.ts';
+import type { CheckoutInput } from './checkout-service.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, '..', 'public');
 const PORT = Number(process.env.PORT ?? 3000);
 
-type CorpoCheckout = {
-  itens?: ItemCarrinho[];
-  cupom?: Cupom | null;
-  cep?: string;
-  nomeCliente?: string;
-  emailCliente?: string;
-  freteGratisVip?: boolean;
-  observacao?: string;
-};
+const repo = new PedidoRepositoryMemoria();
 
 function lerCorpo(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -59,25 +55,35 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && req.url === '/checkout') {
     const bruto = await lerCorpo(req);
 
-    let corpo: CorpoCheckout;
+    let corpo: CheckoutInput;
     try {
-      corpo = JSON.parse(bruto) as CorpoCheckout;
+      corpo = JSON.parse(bruto) as CheckoutInput;
     } catch {
       enviarJson(res, 400, { erro: 'JSON invalido' });
       return;
     }
 
-    const resultado = processarCheckout(
-      corpo.itens ?? [],
-      corpo.cupom ?? null,
-      corpo.cep ?? '',
-      corpo.nomeCliente ?? '',
-      corpo.emailCliente ?? '',
-      corpo.freteGratisVip ?? false,
-      corpo.observacao ?? '',
-    );
-
-    enviarJson(res, 200, resultado);
+    try {
+      const pedido = await finalizarCheckout(
+        {
+          itens: corpo.itens ?? [],
+          cupom: corpo.cupom ?? null,
+          cep: corpo.cep ?? '',
+          nomeCliente: corpo.nomeCliente ?? '',
+          emailCliente: corpo.emailCliente ?? '',
+          freteGratisVip: corpo.freteGratisVip ?? false,
+          observacao: corpo.observacao ?? '',
+        },
+        repo,
+      );
+      enviarJson(res, 200, pedido);
+    } catch (erro) {
+      if (erro instanceof ProdutoNaoEncontradoError) {
+        enviarJson(res, 422, { erro: erro.message });
+        return;
+      }
+      enviarJson(res, 502, { erro: 'Falha ao consultar o catalogo' });
+    }
     return;
   }
 
@@ -85,5 +91,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`QualiCart rodando em http://localhost:${PORT}`);
+  console.log(`Checkout rodando em http://localhost:${PORT}`);
 });
