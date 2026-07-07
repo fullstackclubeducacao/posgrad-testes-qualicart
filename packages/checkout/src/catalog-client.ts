@@ -4,6 +4,13 @@
 // Formato esperado da resposta de /produtos/:sku:
 //   { sku: string; nome: string; preco: number }
 
+import { trace, context, propagation, SpanKind, SpanStatusCode } from '@opentelemetry/api';
+
+// Tracer manual: sob Node nativo (ESM) a auto-instrumentacao de http/undici
+// nao engancha, entao criamos o span CLIENT explicitamente e propagamos o
+// contexto W3C (`traceparent`) injetando os headers do fetch.
+const tracer = trace.getTracer('qualicart-checkout');
+
 export type Produto = {
   sku: string;
   nome: string;
@@ -32,18 +39,46 @@ export class ProdutoNaoEncontradoError extends Error {
  * @throws {Error} para qualquer outra resposta nao-2xx (ex.: 503 chaos).
  */
 export async function buscarProduto(sku: string): Promise<Produto> {
-  const resposta = await fetch(`${CATALOG_URL}/produtos/${encodeURIComponent(sku)}`);
+  return tracer.startActiveSpan(
+    'GET /produtos/:sku',
+    { kind: SpanKind.CLIENT },
+    async (span) => {
+      span.setAttribute('http.request.method', 'GET');
+      span.setAttribute('url.full', `${CATALOG_URL}/produtos/${sku}`);
+      span.setAttribute('catalog.sku', sku);
 
-  if (resposta.status === 404) {
-    throw new ProdutoNaoEncontradoError(sku);
-  }
+      // Propagacao W3C manual: injeta `traceparent` no contexto ativo -> headers.
+      const headers: Record<string, string> = {};
+      propagation.inject(context.active(), headers);
 
-  if (!resposta.ok) {
-    throw new Error(
-      `Catalogo respondeu ${resposta.status} ao buscar o produto ${sku}`,
-    );
-  }
+      try {
+        const resposta = await fetch(
+          `${CATALOG_URL}/produtos/${encodeURIComponent(sku)}`,
+          { headers },
+        );
+        span.setAttribute('http.response.status_code', resposta.status);
 
-  const produto = (await resposta.json()) as Produto;
-  return produto;
+        if (resposta.status === 404) {
+          throw new ProdutoNaoEncontradoError(sku);
+        }
+
+        if (!resposta.ok) {
+          throw new Error(
+            `Catalogo respondeu ${resposta.status} ao buscar o produto ${sku}`,
+          );
+        }
+
+        const produto = (await resposta.json()) as Produto;
+        return produto;
+      } catch (erro) {
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: erro instanceof Error ? erro.message : String(erro),
+        });
+        throw erro;
+      } finally {
+        span.end();
+      }
+    },
+  );
 }

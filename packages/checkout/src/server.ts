@@ -7,10 +7,22 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { trace, metrics, SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { finalizarCheckout } from './checkout-service.ts';
 import { PedidoRepositoryMemoria } from './pedido-repository.ts';
 import { ProdutoNaoEncontradoError } from './catalog-client.ts';
 import type { CheckoutInput } from './checkout-service.ts';
+
+// Telemetria: tracer para o span raiz do request e metricas de checkout.
+const tracer = trace.getTracer('qualicart-checkout');
+const meter = metrics.getMeter('qualicart-checkout');
+const checkoutsProcessados = meter.createCounter('qualicart.checkouts.processados', {
+  description: 'Quantidade de checkouts finalizados com sucesso',
+});
+const checkoutDuracaoMs = meter.createHistogram('qualicart.checkout.duracao', {
+  description: 'Duracao do processamento de checkout',
+  unit: 'ms',
+});
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, '..', 'public');
@@ -53,37 +65,60 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'POST' && req.url === '/checkout') {
-    const bruto = await lerCorpo(req);
+    // Span RAIZ do trace distribuido de checkout. Tudo o que roda dentro do
+    // callback (incl. os spans CLIENT do catalog-client) fica aninhado aqui.
+    await tracer.startActiveSpan(
+      'POST /checkout',
+      { kind: SpanKind.SERVER },
+      async (span) => {
+        const inicio = performance.now();
+        const bruto = await lerCorpo(req);
 
-    let corpo: CheckoutInput;
-    try {
-      corpo = JSON.parse(bruto) as CheckoutInput;
-    } catch {
-      enviarJson(res, 400, { erro: 'JSON invalido' });
-      return;
-    }
+        let corpo: CheckoutInput;
+        try {
+          corpo = JSON.parse(bruto) as CheckoutInput;
+        } catch {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: 'JSON invalido' });
+          span.end();
+          enviarJson(res, 400, { erro: 'JSON invalido' });
+          return;
+        }
 
-    try {
-      const pedido = await finalizarCheckout(
-        {
-          itens: corpo.itens ?? [],
-          cupom: corpo.cupom ?? null,
-          cep: corpo.cep ?? '',
-          nomeCliente: corpo.nomeCliente ?? '',
-          emailCliente: corpo.emailCliente ?? '',
-          freteGratisVip: corpo.freteGratisVip ?? false,
-          observacao: corpo.observacao ?? '',
-        },
-        repo,
-      );
-      enviarJson(res, 200, pedido);
-    } catch (erro) {
-      if (erro instanceof ProdutoNaoEncontradoError) {
-        enviarJson(res, 422, { erro: erro.message });
-        return;
-      }
-      enviarJson(res, 502, { erro: 'Falha ao consultar o catalogo' });
-    }
+        span.setAttribute('checkout.itens', (corpo.itens ?? []).length);
+
+        try {
+          const pedido = await finalizarCheckout(
+            {
+              itens: corpo.itens ?? [],
+              cupom: corpo.cupom ?? null,
+              cep: corpo.cep ?? '',
+              nomeCliente: corpo.nomeCliente ?? '',
+              emailCliente: corpo.emailCliente ?? '',
+              freteGratisVip: corpo.freteGratisVip ?? false,
+              observacao: corpo.observacao ?? '',
+            },
+            repo,
+          );
+          span.setAttribute('checkout.total', pedido.total);
+          checkoutsProcessados.add(1, { resultado: 'ok' });
+          checkoutDuracaoMs.record(performance.now() - inicio, { resultado: 'ok' });
+          span.end();
+          enviarJson(res, 200, pedido);
+        } catch (erro) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: erro instanceof Error ? erro.message : String(erro),
+          });
+          checkoutsProcessados.add(1, { resultado: 'erro' });
+          span.end();
+          if (erro instanceof ProdutoNaoEncontradoError) {
+            enviarJson(res, 422, { erro: erro.message });
+            return;
+          }
+          enviarJson(res, 502, { erro: 'Falha ao consultar o catalogo' });
+        }
+      },
+    );
     return;
   }
 

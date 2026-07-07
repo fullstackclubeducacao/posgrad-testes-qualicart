@@ -9,9 +9,9 @@
     "node": ">=24"
   },
   "scripts": {
-    "start": "node packages/checkout/src/server.ts",
-    "start:catalog": "node packages/catalog/src/server.ts",
-    "start:checkout": "node packages/checkout/src/server.ts",
+    "start": "node --import ./packages/checkout/src/instrumentation.ts packages/checkout/src/server.ts",
+    "start:catalog": "node --import ./packages/catalog/src/instrumentation.ts packages/catalog/src/server.ts",
+    "start:checkout": "node --import ./packages/checkout/src/instrumentation.ts packages/checkout/src/server.ts",
     "test": "node --test \"packages/*/test/unit/**/*.test.ts\"",
     "test:coverage": "node --test --experimental-test-coverage \"packages/*/test/unit/**/*.test.ts\"",
     "test:contract": "node --test \"packages/*/test/contract/**/*.ts\"",
