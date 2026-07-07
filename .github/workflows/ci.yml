@@ -202,10 +202,15 @@ jobs:
       - run: npm ci
       - run: npm run test:integration
 
-  # GATE 7 (caro) - E2E com Playwright. Só a jornada crítica de checkout.
-  # Instala o browser e sobe os serviços via webServer do próprio Playwright.
+  # GATE 7 (caro) - E2E + Acessibilidade com Playwright.
+  # Sobe os serviços via webServer do próprio Playwright. Roda a jornada de
+  # checkout e o gate de a11y (axe-core), mas EXCLUI @visual: as baselines de
+  # visual regression são específicas de SO/navegador (aqui versionamos as de
+  # darwin) e falhariam no runner linux. Na prática, visual regression roda em
+  # ambiente consistente (mesmo contêiner sempre) ou em serviço dedicado
+  # (Percy/Chromatic) — ver docs/modulo-3/a11y-visual.md.
   e2e:
-    name: E2E (Playwright)
+    name: E2E + a11y (Playwright)
     runs-on: ubuntu-latest
     needs: [test]
     steps:
@@ -216,8 +221,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - run: npx playwright test --grep-invert @visual
 
-  # Nota: carga (k6) e chaos NÃO são gates por-PR — são experimentos sob
-  # demanda (rodados manualmente / em ambiente parecido com produção), como
-  # discutido no Módulo 2. Ver load/ e chaos/.
+  # Nota: carga (k6, incl. o teste SLO-driven), chaos e o gate @visual NÃO são
+  # gates por-PR aqui — são experimentos/verificações sob demanda ou de ambiente
+  # consistente (ver load/, chaos/ e docs/modulo-3/). O SLO-driven load test
+  # (load/checkout-slo.js) roda contra um ambiente parecido com produção.
