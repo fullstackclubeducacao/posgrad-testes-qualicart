@@ -45,6 +45,57 @@ jobs:
       - run: npm run lint
 
   # ---------------------------------------------------------------------------
+  # GATE 1.b (barato) - SAST (Static Application Security Testing)
+  # Módulo 3 — Segurança shift-left. Analisa o PRÓPRIO código em busca de
+  # padrões perigosos usando o eslint-plugin-security (injeção de objeto, uso
+  # de child_process, regex ReDoS, caminho de arquivo não-literal, ...).
+  #
+  # Roda `npm run lint`, que já carrega o plugin de segurança pelo flat config
+  # (eslint.config.js). É um job dedicado/rótulo de SAST para deixar o gate de
+  # segurança visível no pipeline; posicionado CEDO, junto dos gates baratos.
+  # As regras de segurança são "warn" de propósito (ver eslint.config.js): o
+  # lint expõe o sinal na saída sem quebrar por falso positivo. A evolução
+  # natural deste gate é apertar para `eslint . --max-warnings=<n>` conforme a
+  # base é limpa, tornando qualquer NOVO achado um bloqueio que força revisão
+  # e supressão justificada.
+  # ---------------------------------------------------------------------------
+  sast:
+    name: SAST (ESLint security)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+      - run: npm ci
+      # Reporta os achados de segurança (e demais avisos) de forma visível.
+      - run: npm run lint
+
+  # ---------------------------------------------------------------------------
+  # GATE 1.c (barato) - SCA (Software Composition Analysis)
+  # Módulo 3 — Analisa as DEPENDÊNCIAS (não o nosso código) contra advisories
+  # conhecidas. `npm audit --audit-level=high` FALHA o build somente em
+  # vulnerabilidades de severidade ALTA ou CRÍTICA. Advisories moderadas/baixas
+  # (hoje só transitivas de ferramentas de teste — stryker/cucumber, sem impacto
+  # em runtime de produção) são reportadas mas NÃO quebram o gate. Se algo de
+  # severidade alta surgir na árvore de produção (ex.: `pg`), este gate barra.
+  # Posicionado CEDO (shift-left): vulnerabilidade de dependência é barata de
+  # pegar e cara de descobrir tarde.
+  # ---------------------------------------------------------------------------
+  sca:
+    name: SCA (npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
+
+  # ---------------------------------------------------------------------------
   # GATE 2 (barato) - Typecheck
   # tsc --noEmit: verificação de tipos. Independente do lint => roda em PARALELO.
   # ---------------------------------------------------------------------------
@@ -98,7 +149,7 @@ jobs:
           --test-coverage-lines=0.75
           --test-coverage-functions=0.75
           --test-coverage-branches=0.65
-          "packages/checkout/test/**/*.test.ts"
+          "packages/*/test/unit/**/*.test.ts"
 
   # ---------------------------------------------------------------------------
   # GATE 4 (médio) - BDD / Cucumber
