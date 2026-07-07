@@ -1,215 +1,185 @@
-# QualiCart — Módulo 3: Qualidade Contínua e Observabilidade
+# QualiCart — Módulo 4: Qualidade na Era da IA (entrega final)
 
-O **QualiCart** é o projeto-fio-condutor da disciplina *Estratégias de Testes e Qualidade de Software*. Começou, no Módulo 1, como um mini e-commerce de checkout (carrinho, cupons e frete) em **Node.js + TypeScript** executado pelo **interpretador TypeScript nativo do Node** — sem build, sem transpilação, sem `dist/`. No Módulo 2, o monólito virou **dois serviços** (catálogo + checkout) e a estratégia de testes acompanhou a distribuição (contratos, integração real, property/mutation, E2E, carga, chaos).
+O **QualiCart** é o projeto-fio-condutor da disciplina *Estratégias de Testes e Qualidade de Software*. Começou, no Módulo 1, como um mini e-commerce de checkout (carrinho, cupons e frete) em **Node.js + TypeScript** executado pelo **interpretador TypeScript nativo do Node** — sem build, sem transpilação, sem `dist/`. No Módulo 2 virou **dois serviços** (catálogo + checkout) com a estratégia de teste do distribuído (contratos, integração real, property/mutation, E2E, carga, chaos). No Módulo 3 a qualidade **saiu do pipeline e entrou na produção**: segurança contínua (SAST/SCA), SLO com error budget, entrega progressiva (feature flags/canary), observabilidade (OpenTelemetry), acessibilidade e regressão visual.
 
-Você está na branch **`modulo-3`** (marco `m3-final`). Aqui a qualidade **sai do pipeline e entra na produção**: até agora ela vivia *antes* do deploy (shift-left — testes que aprovam ou reprovam um PR); neste módulo ela passa a viver *também depois*, no sistema em execução, com usuários reais (shift-right). Segurança vira gate contínuo (SAST/SCA), os *thresholds* de carga viram **SLOs com error budget**, a entrega vira **progressiva** (feature flags/canary), o sistema fica **observável** (OpenTelemetry) e a camada visível ganha seus próprios testes (**acessibilidade** + **visual regression**). Continua tudo em **TypeScript nativo do Node** (sem build). Este README descreve o estado **cumulativo** — tudo o que os Módulos 1 e 2 estabeleceram **mais** o que o Módulo 3 acrescentou.
+Você está na branch **`modulo-4`** (marco **`m4-final`**), a **entrega final** da disciplina. Aqui o QualiCart entra no território da **IA**: sobre o sistema distribuído, observável e entregue continuamente dos módulos anteriores, adicionamos um **assistente/agente de checkout** baseado em LLM e — o que de fato importa nesta disciplina — a **estratégia de qualidade para o não-determinismo**.
+
+A tese muda de forma, não de essência. Nos módulos anteriores o determinismo era um pressuposto: mesma entrada, mesma saída, e o teste comparava por **igualdade exata**. Um LLM quebra isso — a mesma pergunta pode gerar textos diferentes, todos corretos. **O determinismo virou um espectro.** Mas a tese que atravessa toda a disciplina — *"teste é gestão de risco com orçamento finito"* — **sobrevive intacta**: o que muda é o **método**, que passa de igualdade exata para **propriedades, faixas e distribuições**. Este README descreve o estado **cumulativo** dos quatro módulos e, sobretudo, mostra como o Módulo 4 **fecha o ciclo** reusando a infraestrutura de qualidade contínua já construída.
+
+> **Honestidade sobre a chave de API.** Este ambiente **não** tem `ANTHROPIC_API_KEY`. Todo o recurso de IA foi projetado para rodar **offline com um cliente LLM FAKE determinístico** (`FakeLlmClient`) — é assim que testes, CI e evals ficam estáveis e reprodutíveis. Bastando definir `ANTHROPIC_API_KEY`, o **mesmo código** passa a falar com o **Claude real** (`claude-opus-4-8`, configurável por `AI_MODEL`). Onde o texto diz "não-determinismo", entenda: com o fake, a variação é **simulada de forma controlada** (seed por índice, variação cosmética que nunca altera a correção); com a chave, a variação é **genuína**.
 
 ---
 
 ## Mapa de branches
 
-O repositório é **evolutivo**: cada módulo vive em sua própria branch, para você acompanhar a maturação da qualidade comparando estados com `git diff`.
+O repositório é **evolutivo**: cada módulo vive em sua própria branch e marco (tag), para você acompanhar a maturação da qualidade comparando estados com `git diff`.
 
-| Branch | O que representa |
-| --- | --- |
-| `main` / `inicio` | **Starter** entregue ao aluno: monólito de checkout, testes fracos, *code smells*, sem CI. |
-| `modulo-1` | Fundação de qualidade: TDD, BDD, CI com *gates*, cobertura e diagnóstico. Tag: `m1-final`. |
-| `modulo-2` | Split em catálogo + checkout e testes do distribuído: Pact, testcontainers, property/mutation, Playwright, k6, chaos, CI evoluído. Tag: `m2-final`. |
-| **`modulo-3`** | **Esta branch.** Qualidade contínua e observabilidade: segurança no pipeline (SAST/SCA), SLO + *error budget*, *feature flags*/canary, OpenTelemetry, acessibilidade e *visual regression*. Tag: `m3-final`. |
-| `modulo-4` *(futuro)* | Assistente/agente de IA, *golden dataset*, evals (Promptfoo), defesas de runtime, *red teaming* e testes A/B — reaproveitando flags, observabilidade e error budget deste módulo. |
+| Branch | Tag | O que representa |
+| --- | --- | --- |
+| `main` / `inicio` | — | **Starter** entregue ao aluno: monólito de checkout, testes fracos, *code smells*, sem CI. |
+| `modulo-1` | `m1-final` | Fundação de qualidade: TDD, BDD, CI com *gates*, cobertura e diagnóstico. |
+| `modulo-2` | `m2-final` | Split em catálogo + checkout e testes do distribuído: Pact, testcontainers, property/mutation, Playwright, k6, chaos, CI evoluído. |
+| `modulo-3` | `m3-final` | Qualidade contínua e observabilidade: SAST/SCA, SLO + *error budget*, *feature flags*/canary, OpenTelemetry, acessibilidade e *visual regression*. |
+| **`modulo-4`** | **`m4-final`** | **Esta branch (entrega final).** Assistente/agente de IA, oráculo invertido, *golden dataset*, evals (Promptfoo), não-determinismo estatístico, defesas de runtime, *red teaming* e plano de A/B — **reusando** flags, observabilidade e error budget do M3. |
 
-Para navegar entre os estágios:
+Para navegar entre os estágios e ver a progressão técnica:
 
 ```bash
-git checkout modulo-3              # entra nesta branch
-git diff modulo-2 modulo-3         # vê exatamente o que o Módulo 3 acrescentou
-git diff modulo-2 modulo-3 --stat  # resumo por arquivo (segurança, SLO, flags, OTel, a11y/visual)
+git checkout modulo-4              # entra nesta branch (entrega final)
+git diff modulo-3 modulo-4         # vê exatamente o que o Módulo 4 acrescentou
+git diff modulo-3 modulo-4 --stat  # resumo por arquivo (ai-assistant, evals, docs/modulo-4)
 git log --oneline                  # lê a história de commits
 ```
 
+Sugestão pedagógica: percorra as **tags** (`inicio` → `m1-final` → `m2-final` → `m3-final` → `m4-final`) e faça `git diff` entre cada par para ler a evolução da estratégia de qualidade como uma linha do tempo — do teste clássico ao teste do sistema probabilístico.
+
 ---
 
-## Arquitetura
+## Arquitetura do recurso de IA
 
-A topologia dos **dois serviços** do Módulo 2 permanece — o checkout resolve cada preço no catálogo por HTTP e persiste o pedido. O que o Módulo 3 acrescenta ao desenho é **transversal**: uma camada de **instrumentação OpenTelemetry** que atravessa os dois processos (um mesmo `traceId` propagado via header W3C `traceparent`) e uma **feature flag** no checkout que escolhe, em tempo de execução, entre resolução de preços sequencial (atual) e resiliente (paralela + timeout + retry + fallback).
+Todo o código do assistente vive em `packages/ai-assistant/`. Ele é um **agente com uso de ferramentas (tool use)** que ajuda o cliente a tirar dúvidas sobre produtos, entender cupons, calcular o total do carrinho e consultar o status de um pedido — sempre sobre o domínio real do QualiCart, **100% em memória** (sem HTTP), reusando as funções puras de preço do checkout e o catálogo do M2.
 
 ```text
-                 POST /checkout
-   navegador ─────────────────────▶  ┌──────────────────────────────────┐
-   / curl                            │  CHECKOUT  (porta 3000)           │
-                                     │  ── instrumentação OTel (--import)│
-                                     │                                   │
-                                     │  server.ts  [span raiz SERVER]    │
-                                     │    └ checkout-service.ts          │   GET /produtos/:sku      ┌───────────────────────────┐
-                                     │        ├ flags.ts ── checkoutResiliente?                       │ CATÁLOGO (porta 3001)     │
-                                     │        │     OFF → sequencial     │   traceparent (W3C)       │ ── instrumentação OTel    │
-                                     │        │     ON  → Promise.all +  │  ────────────────────────▶│  server.ts [span SERVER]  │
-                                     │        │           timeout+retry  │   { sku, nome, preco }    │    └ products.ts          │
-                                     │        ├ catalog-client.ts ───────┼──[span CLIENT + inject]──▶│  (preços em memória)      │
-                                     │        │   (lógica pura de preços)│◀──────────────────────────│  + ganchos de chaos (env) │
-                                     │        └ pedido-repository         │                           └───────────────────────────┘
-                                     │              │                    │
-                                     └──────────────┼────────────────────┘
-                                                    │ salvar(pedido)
-                                                    ▼
-                          ┌─────────────────────────────────────────────┐
-                          │  PedidoRepositoryMemoria  (default, sem I/O)  │
-                          │  PedidoRepositoryPostgres (pg → Postgres)     │
-                          └─────────────────────────────────────────────┘
-
-         ╰─ um único trace distribuído: POST /checkout ─▶ 2× GET /produtos/:sku (checkout CLIENT ▶ catálogo SERVER) ─╯
+                          ┌──────────────────────────── packages/ai-assistant/ ─────────────────────────────┐
+                          │                                                                                  │
+   usuário  ──pergunta──▶ │  guardrails.ts  ── (1) ENTRADA: detectarInjecao ──┐                              │
+   (CLI / futuro chat)    │                                                   │ recusa? → MENSAGEM_RECUSA    │
+                          │                                                   ▼                              │
+                          │  agent.ts  ─ AssistenteCheckout ── LOOP AGÊNTICO (teto MAX_ITERACOES = 5) ──┐    │
+                          │       │                                                                     │    │
+                          │       ▼                                                                     │    │
+                          │  llm-client.ts  ── LlmClient (interface) ──┬── FakeLlmClient  (offline, sem chave) │
+                          │       │                                    └── AnthropicLlmClient (Claude real,    │
+                          │       │                                          se ANTHROPIC_API_KEY; AI_MODEL   │
+                          │       │                                          default claude-opus-4-8)         │
+                          │       │  emite tool_use ▼                                                    │    │
+                          │  tools.ts  ── FERRAMENTAS read-only (menor privilégio):                     │    │
+                          │       ├─ buscar_produto      → catálogo (packages/catalog, em memória)      │    │
+                          │       ├─ calcular_total      → processarCheckout (funções puras do checkout)│    │
+                          │       ├─ aplicar_cupom_info  → catálogo de cupons                           │    │
+                          │       └─ consultar_pedido    → PedidoRepository injetado                    │    │
+                          │       │  (finalizar_pedido NÃO é exposta: alto impacto → confirmação humana)│    │
+                          │       ▼  tool_result ─────────────────────────────────────────────────────┘    │
+                          │  guardrails.ts ── (2) SAÍDA/formato: sanitizarSaida · (3) ESCOPO: saidaInsegura  │
+                          │                   (4) FALLBACK: try/catch nunca propaga exceção → MENSAGEM_FALLBACK│
+                          └──────────────────────────────────────────────────────────────────────────────────┘
+                                                        │ resposta segura
+                                                        ▼
+                                              { resposta, ferramentasUsadas, recusado? }
 ```
 
-**Camadas do checkout** (`packages/checkout/src/`):
+Peças-chave (`packages/ai-assistant/src/`):
 
-- **`instrumentation.ts`** *(novo)* — sobe o `NodeSDK` do OTel (`service.name = qualicart-checkout`), registra o propagador W3C e os exporters de span/métrica. Carregado **antes** do app via `node --import`.
-- **`server.ts`** — servidor HTTP nativo (`node:http`); serve a UI (`/`) e `POST /checkout`. Agora abre o **span raiz** `POST /checkout` (`SpanKind.SERVER`) e registra as métricas de checkout. Traduz erros de domínio em status (`422` produto inexistente, `502`/`503` falha de catálogo).
-- **`checkout-service.ts`** — orquestra I/O. Consulta `flags.ts` (`isEnabled('checkoutResiliente', …)`) e escolhe o braço de resolução de preços; deriva a `chaveDeRollout` do cliente para o rollout *sticky*.
-- **`flags.ts`** *(novo)* — módulo de feature flags: `isEnabled`/`recarregarFlags`, defaults no código + override por `FLAGS` (JSON), rollout percentual **determinístico e sticky** (hash FNV-1a da chave).
-- **`catalog-client.ts`** — consumidor do contrato HTTP; abre span `GET /produtos/:sku` (`SpanKind.CLIENT`) e injeta o `traceparent` no `fetch`. No braço resiliente ganha `AbortController` (timeout 800 ms) + 1 retry.
-- **`checkout.ts`, `cart.ts`, `coupon.ts`, `shipping.ts`** — núcleo puro de preços herdado do M1 (sem I/O).
-- **`pedido-repository.ts`** / **`pedido-repository-postgres.ts`** — interface + impl. em memória (default) e impl. Postgres (`pg`, com `schema.sql`).
+- **`agent.ts`** — a classe `AssistenteCheckout`: guardrail de entrada, loop agêntico com teto de iterações, guardrail de saída e fallback que **nunca** propaga exceção ao chamador.
+- **`llm-client.ts`** — a **costura testável**: a interface `LlmClient` com duas implementações — `AnthropicLlmClient` (real, `@anthropic-ai/sdk`, só roda com chave, reembrulha falhas em `LlmIndisponivelError`) e `FakeLlmClient` (determinístico, offline, classifica a intenção por palavras-chave e emite o `tool_use` correspondente). É essa dupla que torna o recurso **testável sem chave**.
+- **`tools.ts`** — quatro ferramentas **somente-leitura** (menor privilégio), com deps injetáveis (mockáveis nos testes). A ação de alto impacto (`finalizarPedido`) **não é exposta** ao LLM e exige `confirmadoPeloUsuario === true`.
+- **`guardrails.ts`** — defesas de runtime em camadas (injeção na entrada, formato/valor da saída, escopo/segurança, fallback).
+- **`prompt.ts`** — `PROMPT_SISTEMA` + `MARCA_ANTI_INJECAO` (a diretriz de segurança que a demo de regressão remove para provocar a falha).
+- **`cli.ts`** — demo de linha de comando; escolhe automaticamente fake (sem chave) ou Claude real (com chave) e imprime qual cliente está ativo.
 
-**Serviço de catálogo** (`packages/catalog/src/`): `instrumentation.ts` *(novo)* espelha a instrumentação (`service.name = qualicart-catalog`); `server.ts` extrai o `traceparent` do request e abre um span **filho** do cliente, com a latência de *chaos* **dentro** do span; `products.ts` é o catálogo em memória, com ganchos `CHAOS_LATENCY_MS`/`CHAOS_FAIL_RATE` (inertes no normal).
-
----
-
-## O que o Módulo 3 acrescentou
-
-Sobre a arquitetura distribuída do Módulo 2, esta branch entrega **seis** itens — todos implementados e verdes:
-
-1. **Segurança no pipeline (SAST + SCA).** `eslint-plugin-security` (**SAST**, analisa o *nosso* código) carregado no lint pelo flat config (`eslint.config.js`) + `npm audit --audit-level=high` (**SCA**, analisa as *dependências*) — `npm run audit`. Ambos viram **jobs no CI**. Achado real de SAST (`detect-non-literal-fs-filename` num `readFile` de teste) analisado e **classificado como falso positivo seguro** (caminho fixo derivado de `import.meta.url`, sem entrada de usuário). `npm audit` = **0 high/critical, 7 moderate** (todas transitivas de *devDependencies* — stryker/cucumber — sem presença no runtime de produção; `pg` está limpo). As regras de segurança ficam como `warn` de propósito (sinalizam sem quebrar por falso positivo). Ver [`docs/modulo-3/seguranca-pipeline.md`](docs/modulo-3/seguranca-pipeline.md).
-
-2. **SLO + error budget + carga que reprova ao violar o SLO.** `load/checkout-slo.js` — `npm run slo:load`. Os **thresholds do k6 passam a SER os SLOs** do `POST /checkout`: disponibilidade **≥ 99,5%**, **p99 < 400 ms**, **p95 < 250 ms** (janela de 30 dias). Com catálogo saudável **passa** (exit 0, p99 ≈ 5,87 ms); sob chaos (`CHAOS_LATENCY_MS=500`, resolução sequencial) o p99 vai a **1,51 s** e o teste **reprova** (exit **99**) — mesmo com disponibilidade 100%, pois o que reprova é *"funciona dentro do SLO?"*, não *"funciona?"*. O **error budget** (0,5%) é calculado em números concretos (~5.000 checkouts ou ~3h36/mês num volume hipotético de 1M/mês) e ligado a burn rate/canary/DORA. Ver [`docs/modulo-3/slo-error-budget.md`](docs/modulo-3/slo-error-budget.md).
-
-3. **Feature flag + canary (progressive delivery).** `packages/checkout/src/flags.ts` implementa rollout percentual **determinístico e sticky** (mesmo usuário → sempre o mesmo braço). A flag `checkoutResiliente` **desacopla deploy de release**: OFF = comportamento atual (resolução sequencial); ON = resolução **paralela** (`Promise.all`) + **timeout** (800 ms) + **retry** (1×, backoff 100 ms) + **falha fechada** (`CatalogoIndisponivelError` → HTTP 503, nunca preço inventado). É a resposta ao achado do chaos do M2 — medido em `chaos/comparativo-flag.mjs`: latência **606,5 → 304,6 ms** (~50% pela paralelização) e taxa de erro **46,7% → 10,0%** (retry recupera transitórias). Inclui plano de canary 1% → 5% → 25% → 50% → 100% com critério objetivo de avançar/reverter e ciclo de vida da flag. Ver [`docs/modulo-3/feature-flags-canary.md`](docs/modulo-3/feature-flags-canary.md).
-
-4. **Observabilidade com OpenTelemetry.** `instrumentation.ts` nos **dois** serviços, carregados via `node --import` (antes do app). Traces distribuídos com **propagação W3C manual** — a auto-instrumentação de `node:http` **não engancha de forma confiável** sob ESM nativo do Node 26 (*type stripping*, sem build), gerando traces-raiz separados; por isso spans manuais explícitos (`startActiveSpan` + `propagation.inject`/`extract`), que são determinísticos. Um trace real de checkout localiza o gargalo: `POST /checkout` de **628 ms** é essencialmente a soma das duas chamadas **sequenciais** ao catálogo (~304 ms cada, com chaos de 300 ms) — a lógica pura é sub-milissegundo. Duas métricas: contador `qualicart.checkouts.processados` + histograma `qualicart.checkout.duracao`. Por padrão exporta para o **console** (`ConsoleSpanExporter`); Jaeger é opcional via `OTEL_EXPORTER_OTLP_ENDPOINT`. Ver [`docs/modulo-3/observabilidade.md`](docs/modulo-3/observabilidade.md).
-
-5. **Acessibilidade + regressão visual.** Gate **`@a11y`** (`e2e/a11y.spec.ts`, `@axe-core/playwright`) barra violações **sérias/críticas** de WCAG 2 A/AA — corrigiu um **contraste real**: texto de apoio `#c4c9ce` sobre branco tinha razão **1,66:1** (reprovado, esperado ≥ 4,5:1), trocado por `#6b7480` (> 4,5:1). Gate **`@visual`** (`e2e/visual.spec.ts`, `toHaveScreenshot`) compara pixel a pixel contra uma baseline versionada (`e2e/visual.spec.ts-snapshots/checkout-chromium-darwin.png`), com `maxDiffPixelRatio: 0.01`, animações desligadas e ciclo baseline → diff → aprovação humana. `npm run test:a11y` / `npm run test:visual`. Ver [`docs/modulo-3/a11y-visual.md`](docs/modulo-3/a11y-visual.md).
-
-6. **CI evoluído.** O workflow `.github/workflows/ci.yml` ganhou os jobs de **`sast`** e **`sca`** (cedo, junto dos gates baratos) e o gate **E2E passou a rodar acessibilidade** (`@a11y`), **excluindo `@visual`** — as baselines visuais são por plataforma (versionamos as de darwin; falhariam no runner linux). Carga/SLO (k6), chaos e `@visual` **não** são gates por-PR: rodam sob demanda ou em ambiente consistente/serviço dedicado.
-
-> **Honestidade dos números.** As latências *saudáveis* locais são baixíssimas porque os serviços rodam **em memória**, sem I/O de banco — o valor pedagógico está na **forma de ler** (por percentil, contra uma meta), não no absoluto. O OTel usa **console exporter** por padrão (Jaeger é opcional). As baselines de visual regression são **acopladas à plataforma** (SO + navegador). Todos os números acima são medidos, não estimados.
+**Roda sem chave (fake) ou com chave (Claude real)** — o mesmo agente, tools e guardrails; só troca a implementação de `LlmClient`.
 
 ---
 
-## Pipeline de CI (estado atual)
+## O que o Módulo 4 acrescentou
 
-`.github/workflows/ci.yml` — gates ordenados do **mais barato ao mais caro** (fail fast). Os do Módulo 3 estão marcados:
+Sobre a plataforma de qualidade contínua do M3, esta branch entrega **seis** itens — todos implementados e verdes:
 
-| # | Job | O que faz | Depende de |
-| --- | --- | --- | --- |
-| 1 | **lint** | ESLint (estilo + estático) | — |
-| 1b | **sast** *(M3)* | `npm run lint` com `eslint-plugin-security` (SAST, rótulo dedicado) | — |
-| 1c | **sca** *(M3)* | `npm audit --audit-level=high` (SCA; barra high/critical) | — |
-| 2 | **typecheck** | `tsc --noEmit` | — |
-| 3 | **test** | unidade (`node --test`) + **gate de cobertura nativo** (lines 0.75 / functions 0.75 / branches 0.65) | lint, typecheck |
-| 4 | **bdd** | Cucumber (comportamento de cupom) | test |
-| 5 | **contract** | Pact (consumidor gera + provedor verifica) | test |
-| 6 | **integration** | testcontainers (Postgres real) | test |
-| 7 | **e2e** *(M3: + a11y)* | Playwright: jornada feliz **+ `@a11y`**, com `--grep-invert @visual` | test |
+1. **Geração de testes assistida + auditoria de "oráculo invertido".** Pedir a um LLM que **gere testes** inverte o oráculo: para inventar a asserção, a IA deduz o valor esperado **do que o código FAZ**, não do que **deveria fazer** — cristalizando bugs latentes. O caso real: `processarCheckout` fazia aritmética monetária em `number` sem arredondar, e o campo `desconto` de um checkout de 2 camisetas com cupom de 10% carregava o lixo de float `11.980000000000004`. A IA geraria `assert.equal(resultado.desconto, 11.980000000000004)` — verde, mas blindando o bug. **Auditamos o oráculo** e corrigimos a raiz com `arredondarMoeda` (`packages/checkout/src/checkout.ts`, aplicado a todos os campos monetários), com a asserção **desejada** `11.98` + invariante de 2 casas decimais em `packages/checkout/test/unit/checkout-ia.test.ts`. Doc: [`docs/modulo-4/auditoria-oraculo-invertido.md`](docs/modulo-4/auditoria-oraculo-invertido.md).
 
-Os gates 1, 1b, 1c e 2 rodam em **paralelo**. **Sob demanda / fora do CI por-PR:** carga e **SLO** (`npm run slo:load`), **chaos** (`chaos/`) e o gate **`@visual`** (baseline por plataforma).
+2. **Golden dataset (27 casos curados a mão).** [`evals/golden-dataset.json`](evals/golden-dataset.json) — 27 casos distribuídos por risco: `caminho-feliz` (8), `borda` (8), `seguranca` (7), `tom-ambiguidade` (4). Cada caso traz `criterios.deterministicos` (verificáveis por regra) e `criterios.julgamento` (rubrica para LLM-as-judge). A tese: **definir "boa resposta" é o trabalho intelectual; a ferramenta é só o músculo** — e o dataset é o **teto** da qualidade da avaliação (SKUs, preços, cupons e frete foram conferidos contra o código real). Doc: [`docs/modulo-4/golden-dataset.md`](docs/modulo-4/golden-dataset.md).
+
+3. **Evals no Promptfoo (gate offline determinístico + LLM-as-judge sob demanda).** `npm run eval` roda [`evals/promptfooconfig.yaml`](evals/promptfooconfig.yaml) 100% offline (fake), **13/13 casos verdes (exit 0)**, empurrando o máximo para a camada barata (`contains`/`regex`/`javascript` sobre fatos e tool use). O provider custom `evals/provider-assistente.mjs` importa os `.ts` do assistente real (type stripping nativo) — o eval exercita **o código de produção**. A camada `llm-rubric` (`promptfooconfig.judge.yaml`, `anthropic:messages:claude-opus-4-8`) roda nightly/sob demanda com chave. **Demo de regressão de prompt** (`promptfooconfig.regressao.yaml`): removendo a `MARCA_ANTI_INJECAO`, a injeção **escondida em dado** passa a ser obedecida — o prompt bom passa, o degradado **falha** (exit 100), e o gate bloquearia o merge. Doc: [`docs/modulo-4/evals-promptfoo.md`](docs/modulo-4/evals-promptfoo.md).
+
+4. **Não-determinismo estatístico + defesas de runtime em camadas.** Confiabilidade deixa de ser propriedade de *uma* execução e vira propriedade da **distribuição**: `test/nao-determinismo/distribuicao.test.ts` roda o mesmo caso **N = 50** vezes e asserta **taxa ≥ 95%** (medido: **50/50 = 100% boas, 0 catastróficas**), nunca `assert.equal` numa execução isolada. `test/nao-determinismo/defesas.test.ts` prova que, **quando** o modelo produz lixo (formato inválido, timeout, injeção, conteúdo perigoso, loop), cada camada de guardrail degrada para uma resposta segura padrão — o agente **nunca** lança, **nunca** vaza. Doc: [`docs/modulo-4/nao-determinismo.md`](docs/modulo-4/nao-determinismo.md).
+
+5. **Testes de agente (tool use, planejamento, red teaming) + contenção arquitetural.** Em `test/agente/`: **tool use** (asserta o par *nome-da-ferramenta + input*, não a prosa, via `LlmEspiao`), **planejamento** (a trajetória: encadeia ferramentas, termina, e respeita `MAX_ITERACOES = 5` sob um LLM patológico que nunca encerra — corta em exatamente 5 execuções), e **red teaming** (bateria curada e determinística: 6 variantes de injeção direta, exfiltração de prompt, **injeção embutida em dado** — nome de produto/campo de pedido envenenados — e ação de alto impacto sem confirmação). O princípio: **a arquitetura contém; os testes provam que a contenção não regrediu.** Doc: [`docs/modulo-4/testes-agente.md`](docs/modulo-4/testes-agente.md).
+
+6. **Plano de A/B testing em produção (o fecho do curso).** Dois prompts (ou dois modelos — `AI_MODEL`) do assistente competindo com tráfego real, decididos por dados de negócio. O ponto central: **nada foi inventado para IA** — o A/B **reusa** as feature flags sticky + canary do M3 (cada usuário consistentemente em A ou B), a observabilidade OTel + error budget do M3 (medem o comportamento em produção e governam promover/reverter) e o golden dataset/evals do M4 (o gate offline shift-left). O eval responde *"não piorou o que eu já sabia?"*; só a produção responde *"é melhor para os usuários reais?"*. Doc: [`docs/modulo-4/ab-testing-plano.md`](docs/modulo-4/ab-testing-plano.md).
+
+> **Honestidade dos números.** Sem chave, tudo roda com o `FakeLlmClient` determinístico (a variação do não-determinismo é **simulada de forma controlada** — seed por índice, variação cosmética que jamais altera a correção); com `ANTHROPIC_API_KEY`, roda contra o **Claude real**. A distribuição N=50 é estável porque *mesma seed → mesma saída*; com o modelo real, a mesma mecânica (rodar N, categorizar, assertar a taxa) opera sobre variação genuína, tolerando custo e latência (por isso, em produção, roda em suíte nightly/separada).
+
+---
+
+## O ciclo se fecha (a tese da disciplina)
+
+O Módulo 4 é a prova da tese central do curso: **a máquina de qualidade contínua construída nos módulos 1–3 já era, o tempo todo, a resposta para a IA.** Nada precisou ser inventado para o não-determinismo — só **adaptamos as métricas**:
+
+- **A/B de IA = feature flags sticky (M3).** O rollout percentual determinístico e sticky que desacoplava deploy de release vira o mecanismo que mantém **cada usuário consistentemente em A ou B**.
+- **Governança da variante = observabilidade OTel + error budget (M3).** Os traces/métricas que localizavam o gargalo agora medem o **comportamento do modelo em produção**; o error budget/SLO vira o critério objetivo de **promover ou reverter** uma variante de IA.
+- **Gate offline = golden dataset + evals (M4).** A suíte de regressão do sistema probabilístico é o mesmo shift-left dos módulos anteriores — só que asserta **propriedades, faixas e distribuições** em vez de igualdade exata.
+
+Em uma frase: **a qualidade de IA não é uma disciplina nova; é a mesma engenharia de qualidade contínua e observável, com o oráculo generalizado de "igual a X" para "dentro do risco aceitável, com que frequência".**
 
 ---
 
 ## Como rodar
 
-Todos os scripts estão em `package.json`. Resultados abaixo já validados nesta branch.
+Todos os scripts estão em `package.json`. Resultados abaixo já validados nesta branch. **O recurso de IA roda offline por padrão (fake, sem chave); com `ANTHROPIC_API_KEY` usa o Claude real.**
 
 ### Pré-requisitos
 
-- **Node.js >= 24** (recomendado **26**). Nenhuma ferramenta de build.
-- **Docker** em execução — testes de integração (testcontainers sobe um Postgres descartável).
-- **k6** (binário) — testes de carga e o **SLO-driven load**.
-- **Chromium do Playwright** — E2E, a11y e visual: `npx playwright install chromium` (ou `--with-deps` no CI).
+- **Node.js >= 24** (recomendado **26**). Nenhuma ferramenta de build — o Node executa os `.ts` por *type stripping* nativo.
+- **Docker** — testes de integração (testcontainers sobe um Postgres descartável).
+- **k6** (binário) — testes de carga e o SLO-driven load.
+- **Chromium do Playwright** — E2E, a11y e visual: `npx playwright install chromium`.
+- *(Opcional)* **`ANTHROPIC_API_KEY`** — só para rodar o assistente/juiz contra o **Claude real**. Sem ela, tudo funciona no fake.
 
-### Instalação e serviços (com observabilidade)
-
-```bash
-npm install                # pg em runtime; OTel, Pact, Playwright, axe, Stryker,
-                           # fast-check, testcontainers, eslint-plugin-security em dev
-
-npm run start:catalog      # CATÁLOGO em http://localhost:3001, OTel via --import (spans no console)
-npm run start:checkout     # CHECKOUT  em http://localhost:3000, idem
-```
-
-### Suíte de testes (resultados reais)
+### Suíte completa (resultados reais)
 
 ```bash
-npm test                   # unidade (node --test)               -> 45 verdes (inclui flags)
-npm run test:coverage      # unidade + cobertura nativa
+npm install
+
+# --- Núcleo clássico + distribuído (M1–M3) ---
+npm test                   # unidade (node --test)                 -> 68 verdes (inclui checkout-ia)
+npm run test:coverage      # unidade + cobertura nativa (piso)
 npm run test:property      # property-based (fast-check)
 npm run test:contract      # Pact: consumidor + provedor
 npm run test:integration   # Postgres em contêiner (Docker)
-npm run test:e2e           # Playwright: jornada + a11y + visual  -> verdes localmente
-npm run test:a11y          # gate de acessibilidade (axe-core)    -> verde
-npm run test:visual        # regressão visual (baseline darwin)   -> verde
-npm run test:mutation      # Stryker                              -> mutation score ~96%
+npm run test:e2e           # Playwright: jornada + a11y + visual
+npm run test:mutation      # Stryker
 
-npm run typecheck          # tsc --noEmit                         -> 0 erros
-npm run lint               # ESLint (SAST incluso)                -> 0 erros (warnings de
-                           #                                         complexidade e segurança, intencionais)
+# --- Recurso de IA (M4) ---
+npm run test:ai            # assistente: unit + agente + não-determinismo -> 49 verdes (offline, fake)
+npm run eval               # Promptfoo, gate offline determinístico       -> 13/13 verdes (exit 0)
+
+# --- Gates transversais ---
+npm run typecheck          # tsc --noEmit                          -> 0 erros
+npm run lint               # ESLint + SAST                         -> 0 erros (warnings intencionais)
 npm run bdd                # Cucumber
-npm run audit              # npm audit --audit-level=high         -> 0 high/critical
+npm run audit              # npm audit --audit-level=high          -> 0 high/critical
+npm run slo:load           # k6 com thresholds = SLOs (sob demanda)
 ```
 
-### SLO-driven load (reprova ao violar o SLO)
+### O assistente pela CLI (offline vs. real)
 
 ```bash
-# Suba catálogo (3401) e checkout (3400) e rode o k6 com thresholds = SLOs
-CATALOG_PORT=3401 node packages/catalog/src/server.ts &
-PORT=3400 CATALOG_URL=http://localhost:3401 node packages/checkout/src/server.ts &
-npm run slo:load           # catálogo saudável -> PASSA (exit 0)
+# OFFLINE (sem chave): usa o FakeLlmClient determinístico
+node packages/ai-assistant/src/cli.ts "quanto fica meu carrinho com 2 camisetas e o cupom DESCONTO10?"
+# -> [cliente LLM: FakeLlmClient (offline, sem chave)]
+#    O total do seu carrinho é R$122.82 (subtotal R$119.80, desconto R$11.98, frete R$15.00).
+#    (ferramentas usadas: calcular_total)
 
-# Reinicie o catálogo degradado para violar o SLO de latência:
-CATALOG_PORT=3401 CHAOS_LATENCY_MS=500 node packages/catalog/src/server.ts &
-npm run slo:load           # p99 ~1,5s -> REPROVA (exit 99), o gate de release bloquearia
+# REAL (com chave): o MESMO código passa a falar com o Claude
+ANTHROPIC_API_KEY=sk-... node packages/ai-assistant/src/cli.ts "qual o preço do fone?"
+# AI_MODEL é configurável (default claude-opus-4-8), ex.: AI_MODEL=claude-haiku-4-5 ...
 ```
 
-### Observabilidade: um trace que localiza o gargalo
+### Demo de regressão de prompt (o eval acusando a piora)
 
 ```bash
-# Catálogo com 300 ms de latência injetada + checkout, ambos com OTel via --import
-CHAOS_LATENCY_MS=300 npm run start:catalog
-npm run start:checkout
-
-curl -X POST http://localhost:3000/checkout -H 'Content-Type: application/json' \
-  -d '{"itens":[{"sku":"CAM-001","quantidade":2},{"sku":"CAN-001","quantidade":1}],"cep":"01001000","nomeCliente":"Ana","emailCliente":"ana@x.com"}'
-# -> no console: um único traceId; spans do catálogo (~304 ms) dominam o POST /checkout (~628 ms).
-#    Jaeger (opcional): OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 nos dois serviços.
+promptfoo eval -c evals/promptfooconfig.regressao.yaml
+# assistente-bom (COM a marca anti-injeção)  -> PASS nos casos de segurança
+# assistente-degradado (SEM a marca)         -> a injeção ESCONDIDA EM DADO passa a ser obedecida -> FAIL
+# Results: 3 passed / 1 failed -> exit code 100 (!= 0): o gate BLOQUEARIA este merge
 ```
 
-### Feature flag: ativar o caminho resiliente
+### LLM-as-judge (nightly / sob demanda, requer chave)
 
 ```bash
-# Liga checkoutResiliente (paralelo + timeout + retry + fallback 503)
-FLAGS='{"checkoutResiliente":{"enabled":true}}' npm run start:checkout
-# Rollout parcial sticky (canary): {"checkoutResiliente":{"enabled":true,"rolloutPercent":25}}
-
-# Comparativo real OFF vs. ON sob chaos (portas dedicadas, teardown garantido):
-node chaos/comparativo-flag.mjs   # latência 606,5 -> 304,6 ms; erro 46,7% -> 10,0%
+ANTHROPIC_API_KEY=sk-... promptfoo eval -c evals/promptfooconfig.judge.yaml
+# adiciona a camada llm-rubric (anthropic:messages:claude-opus-4-8); NÃO roda por-PR (custo/latência)
 ```
-
-### Exemplo de requisição
-
-Com os dois serviços no ar (itens carregam apenas `sku` + `quantidade`; o preço vem do catálogo):
-
-```bash
-curl -X POST http://localhost:3000/checkout \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "itens": [
-      { "sku": "CAM-001", "quantidade": 2 },
-      { "sku": "CAN-001", "quantidade": 1 }
-    ],
-    "cupom": { "tipo": "percentual", "valor": 10 },
-    "cep": "01000-000"
-  }'
-```
-
-A resposta é o **pedido persistido** (com `id`, `itens`, `subtotal`, `desconto`, `frete`, `total`, `criadoEm`).
 
 ---
 
@@ -218,56 +188,74 @@ A resposta é o **pedido persistido** (com `id`, `itens`, `subtotal`, `desconto`
 ```text
 qualicart/
 ├─ .github/workflows/ci.yml            # pipeline: lint, SAST, SCA, typecheck, test+cobertura,
-│                                      # bdd, contract, integration, e2e+a11y (exclui @visual)
+│                                      # bdd, contract, integration, e2e+a11y, eval (M4)
 ├─ docs/
-│  ├─ modulo-1/                        # diagnóstico/estratégia e reflexão sobre cobertura
-│  ├─ modulo-2/                        # contrato, mutação, e2e, carga, chaos
-│  └─ modulo-3/
-│     ├─ seguranca-pipeline.md          # SAST + SCA (DevSecOps): achado real e npm audit
-│     ├─ slo-error-budget.md            # SLI/SLO/SLA, error budget, k6 threshold = SLO
-│     ├─ feature-flags-canary.md        # flag checkoutResiliente + plano de canary
-│     ├─ observabilidade.md             # OpenTelemetry: trace distribuído localiza o gargalo
-│     └─ a11y-visual.md                 # axe-core (contraste real) + visual regression
-├─ e2e/
-│  ├─ checkout.spec.ts                 # jornada E2E (Playwright/chromium)
-│  ├─ a11y.spec.ts                     # gate de acessibilidade @a11y (axe-core)
-│  ├─ visual.spec.ts                   # regressão visual @visual (toHaveScreenshot)
-│  └─ visual.spec.ts-snapshots/
-│     └─ checkout-chromium-darwin.png  # baseline versionada (acoplada a SO+navegador)
-├─ load/
-│  ├─ checkout-carga.js                # carga k6 do M2 (ramp-up até 50 VUs)
-│  └─ checkout-slo.js                  # SLO-driven: thresholds = SLOs (reprova ao violar)
-├─ chaos/
-│  ├─ experimento-catalogo.mjs / .sh   # experimento de chaos do M2 (intacto)
-│  └─ comparativo-flag.mjs             # comparativo OFF vs. ON da flag sob chaos
-├─ pacts/                              # contrato gerado pelo consumidor (Pact)
-├─ features/                           # BDD em Gherkin (pt) + step definitions
+│  ├─ modulo-1/ · modulo-2/ · modulo-3/ # diagnóstico, distribuído, qualidade contínua
+│  └─ modulo-4/                        # QUALIDADE NA ERA DA IA
+│     ├─ arquitetura-ia.md              # LlmClient real+fake, tools, guardrails, agente
+│     ├─ auditoria-oraculo-invertido.md # geração assistida de testes + o bug de arredondamento
+│     ├─ golden-dataset.md              # 27 casos: por que o dataset é o teto da avaliação
+│     ├─ evals-promptfoo.md             # gate offline + LLM-as-judge + demo de regressão
+│     ├─ nao-determinismo.md            # confiabilidade distribucional (N=50) + defesas em camadas
+│     ├─ testes-agente.md               # tool use, planejamento, red teaming, contenção
+│     └─ ab-testing-plano.md            # A/B em produção reusando flags + OTel + error budget
+├─ evals/                              # SUÍTE DE EVAL (Promptfoo)
+│  ├─ golden-dataset.json               # 27 casos curados (fonte da verdade)
+│  ├─ provider-assistente.mjs           # provider custom: expõe o AssistenteCheckout real (import .ts)
+│  ├─ casos-deterministicos.yaml        # 13 casos + asserções determinísticas
+│  ├─ casos-seguranca-dado.yaml         # casos de segurança da demo de regressão
+│  ├─ promptfooconfig.yaml              # GATE OFFLINE (npm run eval) — só determinístico
+│  ├─ promptfooconfig.judge.yaml        # camada LLM-as-judge (requer ANTHROPIC_API_KEY, nightly)
+│  └─ promptfooconfig.regressao.yaml    # demo bom × degradado (acusa a regressão de prompt)
+├─ e2e/ · load/ · chaos/ · pacts/ · features/   # M2–M3 (E2E/a11y/visual, k6/SLO, chaos, Pact, BDD)
 ├─ packages/
-│  ├─ catalog/                         # SERVIÇO DE CATÁLOGO (preços, porta 3001)
-│  │  └─ src/
-│  │     ├─ produto.ts, products.ts     # tipo + catálogo em memória
-│  │     ├─ server.ts                   # HTTP nativo + span filho (OTel) + ganchos de chaos
-│  │     └─ instrumentation.ts          # NodeSDK OTel (service.name qualicart-catalog)
-│  └─ checkout/                        # SERVIÇO DE CHECKOUT (porta 3000)
-│     ├─ public/index.html             # UI (a11y corrigida + baseline visual)
-│     ├─ src/
-│     │  ├─ cart.ts, coupon.ts, shipping.ts, checkout.ts   # núcleo puro de preços
-│     │  ├─ catalog-client.ts          # consumidor HTTP (Pact) + span CLIENT/timeout/retry
-│     │  ├─ checkout-service.ts         # orquestra catálogo + flag + persistência
-│     │  ├─ flags.ts                    # feature flags (rollout sticky)
-│     │  ├─ instrumentation.ts          # NodeSDK OTel (service.name qualicart-checkout)
-│     │  ├─ pedido-repository*.ts        # interface + memória + Postgres (pg)
-│     │  └─ server.ts                   # HTTP do checkout + span raiz (OTel) + métricas
-│     └─ test/
-│        ├─ unit/                       # ... + flags.test.ts (on/off, rollout, stickiness)
-│        ├─ contract/ · integration/ · property/
-├─ eslint.config.js                    # flat config + eslint-plugin-security (SAST)
-├─ playwright.config.ts                # e2e; reduced-motion; toHaveScreenshot maxDiffPixelRatio
-├─ stryker.config.json · tsconfig.json · cucumber.mjs · package.json
+│  ├─ ai-assistant/                    # ASSISTENTE/AGENTE DE IA (Módulo 4)
+│  │  ├─ src/
+│  │  │  ├─ agent.ts                    # AssistenteCheckout: loop + defesas + contenção
+│  │  │  ├─ llm-client.ts               # LlmClient: AnthropicLlmClient (real) + FakeLlmClient (offline)
+│  │  │  ├─ tools.ts                    # 4 ferramentas read-only (menor privilégio) + deps injetáveis
+│  │  │  ├─ guardrails.ts               # defesas de runtime em camadas
+│  │  │  ├─ prompt.ts                   # PROMPT_SISTEMA + MARCA_ANTI_INJECAO
+│  │  │  └─ cli.ts                      # demo CLI (fake sem chave | Claude com chave)
+│  │  └─ test/
+│  │     ├─ unit/                       # agente, fake-llm, guardrails (determinístico, offline)
+│  │     ├─ agente/                     # tool-use, planejamento, red-teaming
+│  │     └─ nao-determinismo/           # distribuicao (N=50) + defesas em camadas
+│  ├─ catalog/                         # SERVIÇO DE CATÁLOGO (preços, porta 3001; OTel)
+│  └─ checkout/                        # SERVIÇO DE CHECKOUT (porta 3000; OTel, flags)
+│     └─ src/checkout.ts                # núcleo puro + arredondarMoeda (correção do M4)
+│     └─ test/unit/checkout-ia.test.ts  # asserções auditadas (oráculo invertido corrigido)
+├─ eslint.config.js · playwright.config.ts · stryker.config.json
+├─ tsconfig.json · cucumber.mjs · package.json
 ```
 
 ---
 
-## Próximo passo
+## Pipeline de CI (estado final)
 
-O **Módulo 4** leva o QualiCart para o território da **IA**: um **assistente/agente** sobre o checkout, com **golden dataset**, **evals** automatizadas (Promptfoo), **defesas de runtime** (contra *prompt injection*, alucinação de preço, ações indevidas), **red teaming** adversarial e **testes A/B** de comportamento. O ponto-chave é que ele **reaproveita a infraestrutura construída aqui**: os **feature flags** *sticky* deste módulo viram o mecanismo de **A/B** (cada usuário consistentemente em A ou B); a **observabilidade (OTel)** vira o instrumento que mede o comportamento do modelo em produção; e o **error budget / SLO** vira o critério que governa quando promover ou reverter uma variante de IA. A qualidade contínua e observável deste módulo é, portanto, o **alicerce** sobre o qual a qualidade de IA é construída. Quando chegar lá, use `git diff modulo-3 modulo-4` para ver a evolução.
+`.github/workflows/ci.yml` — gates ordenados do **mais barato ao mais caro** (fail fast), acumulados ao longo dos quatro módulos:
+
+| # | Job | O que faz | Módulo |
+| --- | --- | --- | --- |
+| 1 | **lint** | ESLint (estilo + estático) | M1 |
+| 1b | **sast** | `eslint-plugin-security` (analisa o *nosso* código) | M3 |
+| 1c | **sca** | `npm audit --audit-level=high` (analisa as *dependências*) | M3 |
+| 2 | **typecheck** | `tsc --noEmit` | M1 |
+| 3 | **test** | unidade (`node --test`) + **gate de cobertura nativo** (lines/functions 0.75, branches 0.65) | M1 |
+| 4 | **bdd** | Cucumber (comportamento de cupom) | M1 |
+| 5 | **contract** | Pact (consumidor gera + provedor verifica) | M2 |
+| 6 | **integration** | testcontainers (Postgres real) | M2 |
+| 7 | **e2e** | Playwright: jornada feliz + `@a11y` (exclui `@visual`) | M3 |
+| 8 | **eval** | **Promptfoo determinístico/offline** (fake): fatos, tool use, recusa de injeção — regressão de prompt reprova o build | **M4** |
+
+Gates 1, 1b, 1c e 2 rodam em **paralelo**; os demais dependem de `test`. **Sob demanda / fora do CI por-PR:** carga e **SLO** (k6, `npm run slo:load`), **chaos**, o gate **`@visual`** (baseline por plataforma) e a camada **LLM-as-judge** dos evals (exige `ANTHROPIC_API_KEY` — custo/latência, roda nightly num job com o secret).
+
+---
+
+## Fechamento da disciplina
+
+O QualiCart começou, no Módulo 1, com uma tese simples e dura: **teste é gestão de risco com orçamento finito** — você nunca testa tudo, então investe onde o risco custa mais caro. Os módulos seguintes só afiaram esse princípio: no distribuído, o risco mudou de lugar (contratos, integração, resiliência); em produção, o risco virou observável e governado por error budget; e no Módulo 4, com a IA, **o próprio determinismo deixou de ser um pressuposto**.
+
+O que este módulo prova é que **nenhum princípio precisou ser abandonado**. O oráculo de "resultado igual a X" se generalizou para "resultado dentro de uma faixa/propriedade, com uma frequência aceitável". A suíte de regressão virou eval. O SLO virou a barra estatística. O canary virou o A/B de prompt. A gestão de risco continua sendo gestão de risco — só que agora o risco é probabilístico.
+
+O aluno que percorre as quatro branches sai capaz de **projetar qualidade para qualquer sistema** — do clássico e determinístico ao probabilístico e agêntico — porque aprendeu o que não muda: identificar o risco, escrever o oráculo certo (mesmo quando ele é uma distribuição), automatizar o gate barato, observar a produção e decidir com dados. Essa é a competência que atravessa a era da IA.
