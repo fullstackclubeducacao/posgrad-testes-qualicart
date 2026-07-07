@@ -197,7 +197,8 @@ async function main() {
   let catalogo = subirServico('catalogo', arqCatalogo, {
     CATALOG_PORT: String(PORTA_CATALOGO),
   });
-  const checkout = subirServico('checkout', arqCheckout, {
+  // Não capturamos o handle: o teardown mata todos via `processosAtivos`.
+  subirServico('checkout', arqCheckout, {
     PORT: String(PORTA_CHECKOUT),
     CATALOG_URL: URL_CATALOGO,
   });
