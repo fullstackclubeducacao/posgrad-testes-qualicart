@@ -1,0 +1,35 @@
+# =============================================================================
+# QualiCart - Suite de EVAL do assistente de checkout (Modulo 4)
+# =============================================================================
+# Este e' o GATE OFFLINE por-PR. Executa via `npm run eval`.
+#
+# Espectro de pontuaçao de um eval (barato -> caro):
+#   deterministico  ->  similaridade  ->  LLM-as-judge
+#
+# ESTE arquivo usa SO' a camada DETERMINISTICA (contains / regex / javascript):
+#   - roda 100% OFFLINE, sem ANTHROPIC_API_KEY, contra o FakeLlmClient;
+#   - e' rapida, barata e estavel -> serve como quality gate de todo PR.
+#
+# A camada de LLM-as-judge (llm-rubric) mora em `promptfooconfig.judge.yaml`,
+# que exige chave/budget e roda nightly/sob demanda (NAO por-PR).
+#
+# A demo de REGRESSAO de prompt esta em `promptfooconfig.regressao.yaml`.
+#
+# Provider: `provider-assistente.mjs` instancia o AssistenteCheckout REAL
+# (agent.ts) com o FakeLlmClient deterministico.
+# =============================================================================
+
+description: 'Eval deterministico (offline) do assistente de checkout - gate de PR'
+
+prompts:
+  - '{{entrada}}'
+
+providers:
+  - id: file://./provider-assistente.mjs
+    label: assistente-fake
+    config:
+      system: padrao   # prompt de producao (COM a marca anti-injecao)
+
+# Os casos (com asserçoes deterministicas) vivem num arquivo compartilhado,
+# reaproveitado pelo config do juiz. DRY: uma fonte de casos, varios targets.
+tests: file://./casos-deterministicos.yaml

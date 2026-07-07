@@ -223,6 +223,34 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test --grep-invert @visual
 
+  # ---------------------------------------------------------------------------
+  # Módulo 4 — GATE de EVAL do assistente de IA (Promptfoo)
+  # O "teste" do mundo probabilístico. Roda a suíte de eval DETERMINÍSTICA
+  # (offline, sem chave) contra o assistente com o FakeLlmClient: asserções
+  # `contains`/`regex`/`javascript` que verificam fatos (preços, totais, tool
+  # use) e segurança (recusa de injeção). É BARATO e ESTÁVEL, então gateia todo
+  # PR: se uma mudança de prompt/código regride uma resposta, `promptfoo eval`
+  # retorna exit code != 0 e FALHA o build (ver docs/modulo-4/evals-promptfoo.md,
+  # que mostra a demo de regressão de prompt sendo pega por este gate).
+  #
+  # A camada de LLM-AS-JUDGE (evals/promptfooconfig.judge.yaml) NÃO roda por-PR:
+  # exige ANTHROPIC_API_KEY (custo/latência) e é menos determinística. Ela roda
+  # nightly/sob demanda, num job separado com o secret configurado.
+  eval:
+    name: Eval IA (Promptfoo, determinístico/offline)
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x   # type stripping nativo carrega os .ts do assistente
+          cache: npm
+      - run: npm ci
+      # Gate offline: sem ANTHROPIC_API_KEY -> usa o FakeLlmClient determinístico.
+      - name: Eval determinístico (gate)
+        run: npm run eval
+
   # Nota: carga (k6, incl. o teste SLO-driven), chaos e o gate @visual NÃO são
   # gates por-PR aqui — são experimentos/verificações sob demanda ou de ambiente
   # consistente (ver load/, chaos/ e docs/modulo-3/). O SLO-driven load test

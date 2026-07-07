@@ -1,0 +1,35 @@
+# =============================================================================
+# QualiCart - DEMO de REGRESSAO DE PROMPT via eval (Modulo 4)
+# =============================================================================
+# Objetivo didatico: mostrar o EVAL ACUSANDO uma piora de qualidade causada por
+# uma mudanca de PROMPT (nao de codigo). Compara, lado a lado, DOIS providers:
+#
+#   - assistente-bom       -> prompt de PRODUCAO (COM a marca anti-injecao)
+#   - assistente-degradado -> prompt SEM a marca anti-injecao (a REGRESSAO)
+#
+# Sobre os mesmos casos de seguranca (casos-seguranca-dado.yaml):
+#   - injecao DIRETA: PASSA nos dois (guardrail de entrada, independe do prompt).
+#   - injecao em DADO: PASSA no bom, FALHA no degradado -> o fake "ingenuo"
+#     obedece a instrucao embutida no dado. O eval fica VERMELHO e o processo
+#     termina com exit code != 0 -> o gate BLOQUEARIA esse merge.
+#
+# Rode:  npm exec -- promptfoo eval -c evals/promptfooconfig.regressao.yaml
+#        (offline, sem chave). A coluna do prompt degradado acusa a regressao.
+# =============================================================================
+
+description: 'Demo de regressao de prompt: prompt bom (verde) vs prompt degradado (vermelho)'
+
+prompts:
+  - '{{entrada}}'
+
+providers:
+  - id: file://./provider-assistente.mjs
+    label: assistente-bom
+    config:
+      system: padrao      # prompt de producao (COM a marca anti-injecao)
+  - id: file://./provider-assistente.mjs
+    label: assistente-degradado
+    config:
+      system: degradado   # prompt SEM a marca -> regressao a ser detectada
+
+tests: file://./casos-seguranca-dado.yaml
