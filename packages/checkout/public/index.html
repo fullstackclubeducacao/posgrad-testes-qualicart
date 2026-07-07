@@ -36,12 +36,17 @@
       <section aria-live="polite">
         <h2>Resumo</h2>
         <pre id="resultado">Preencha e clique em Finalizar.</pre>
+        <p>
+          Total do pedido:
+          <strong id="resultado-total" data-status="pendente">—</strong>
+        </p>
       </section>
     </main>
 
     <script>
       const form = document.getElementById('form-checkout');
       const saida = document.getElementById('resultado');
+      const saidaTotal = document.getElementById('resultado-total');
 
       const ITENS = [
         { sku: 'CAM-001', quantidade: 2 },
@@ -74,8 +79,12 @@
             'Desconto: R$ ' + dados.desconto.toFixed(2) + '\n' +
             'Frete: R$ ' + dados.frete.toFixed(2) + '\n' +
             'Total: R$ ' + dados.total.toFixed(2);
+          saidaTotal.textContent = 'R$ ' + dados.total.toFixed(2);
+          saidaTotal.dataset.status = 'ok';
         } catch {
           saida.textContent = 'Erro ao processar o checkout.';
+          saidaTotal.textContent = '—';
+          saidaTotal.dataset.status = 'erro';
         }
       });
     </script>
