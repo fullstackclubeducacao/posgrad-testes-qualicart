@@ -14,7 +14,7 @@ export type Cupom =
  */
 export function aplicarCupom(subtotal: number, cupom: Cupom): number {
   if (cupom.minimoCarrinho !== undefined) {
-    if (subtotal > cupom.minimoCarrinho) {
+    if (subtotal >= cupom.minimoCarrinho) {
       return descontar(subtotal, cupom);
     }
     return subtotal;
