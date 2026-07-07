@@ -1,0 +1,119 @@
+# =============================================================================
+# QualiCart - Pipeline de Quality Gates (CI/CD)
+# =============================================================================
+# Módulo 1 - Testes & Qualidade
+#
+# Princípio didático: os gates são ordenados do MAIS BARATO/RÁPIDO ao MAIS CARO,
+# de forma a FALHAR CEDO ("fail fast") e não desperdiçar minutos de runner.
+#
+# Ordem dos gates (barato -> caro):
+#   1. lint      (ESLint)          -.
+#   2. typecheck (tsc --noEmit)    -'  << rápidos e INDEPENDENTES: rodam em PARALELO
+#   3. test      (unit + coverage) <<  só roda se lint E typecheck passarem
+#   4. bdd       (Cucumber/E2E)    <<  comportamento por último (mais caro/lento)
+#
+# Cobertura é tratada como PISO (piso mínimo aceitável), NUNCA como teto: o
+# objetivo é impedir regressões abaixo do limiar, e não desencorajar cobrir mais.
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# Cancela execuções antigas do mesmo ref quando um novo push chega (economia).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # GATE 1 (barato) - Lint
+  # ESLint: estilo e problemas estáticos. Roda em paralelo com o typecheck.
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint (ESLint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x   # LTS com type stripping nativo estável
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  # ---------------------------------------------------------------------------
+  # GATE 2 (barato) - Typecheck
+  # tsc --noEmit: verificação de tipos. Independente do lint => roda em PARALELO.
+  # ---------------------------------------------------------------------------
+  typecheck:
+    name: Typecheck (tsc --noEmit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  # ---------------------------------------------------------------------------
+  # GATE 3 (médio) - Testes de unidade + GATE DE COBERTURA
+  # Só executa se lint E typecheck passarem (needs). Assim não gastamos recurso
+  # rodando a suíte se o barato já falhou (fail fast).
+  #
+  # A cobertura usa o coverage NATIVO do Node (--experimental-test-coverage).
+  # O GATE é aplicado pelos flags nativos de limiar; quando a cobertura fica
+  # abaixo do alvo, o `node --test` retorna exit code != 0 e FALHA o job.
+  #
+  # Limiares escolhidos (PISO, não teto), na faixa ~70-80% sugerida pela
+  # disciplina, ligeiramente conservadores para não ficarem flaky:
+  #   * lines     = 0.75  -> domínio (carrinho/cupom/frete) atinge ~80%+;
+  #                          margem para os ramos não cobertos do checkout.ts.
+  #   * functions = 0.75  -> a maioria das funções de domínio é exercitada.
+  #   * branches  = 0.65  -> ramos são o eixo mais difícil; checkout.ts
+  #                          (orquestrador) tem caminhos de erro parcialmente
+  #                          cobertos, então mantemos o piso um pouco mais baixo
+  #                          para passar com folga realista sem virar flaky.
+  # Estes números são PISO: subir a cobertura sempre é bem-vindo.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Unit tests + coverage gate
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+      - run: npm ci
+      - name: Run tests with native coverage threshold gate
+        run: >-
+          node --test
+          --experimental-test-coverage
+          --test-coverage-lines=0.75
+          --test-coverage-functions=0.75
+          --test-coverage-branches=0.65
+          "packages/checkout/test/**/*.test.ts"
+
+  # ---------------------------------------------------------------------------
+  # GATE 4 (caro) - BDD / Cucumber
+  # Testes de comportamento (E2E) por último: são os mais lentos e caros.
+  # Depende de `test` para só rodar quando a unidade + cobertura já passaram.
+  # ---------------------------------------------------------------------------
+  bdd:
+    name: BDD (Cucumber)
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+          cache: npm
+      - run: npm ci
+      - run: npm run bdd
