@@ -13,14 +13,17 @@ export type Cupom =
  *   o cupom nao se aplica e o subtotal original e retornado.
  */
 export function aplicarCupom(subtotal: number, cupom: Cupom): number {
-  if (cupom.minimoCarrinho !== undefined) {
-    if (subtotal >= cupom.minimoCarrinho) {
-      return descontar(subtotal, cupom);
-    }
+  if (!atingiuMinimo(subtotal, cupom)) {
     return subtotal;
   }
-
   return descontar(subtotal, cupom);
+}
+
+function atingiuMinimo(subtotal: number, cupom: Cupom): boolean {
+  if (cupom.minimoCarrinho === undefined) {
+    return true;
+  }
+  return subtotal >= cupom.minimoCarrinho;
 }
 
 function descontar(subtotal: number, cupom: Cupom): number {
