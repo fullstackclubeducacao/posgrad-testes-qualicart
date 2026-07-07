@@ -1,6 +1,10 @@
 node_modules/
 coverage/
 dist/
+reports/
+.stryker-tmp/
+test-results/
+playwright-report/
 *.log
 .DS_Store
 .env
