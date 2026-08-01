@@ -20,6 +20,7 @@
     "test:e2e": "playwright test",
     "test:a11y": "playwright test --grep @a11y",
     "test:visual": "playwright test --grep @visual",
+    "test:browser": "playwright test --ui",
     "test:mutation": "stryker run",
     "slo:load": "k6 run load/checkout-slo.js",
     "audit": "npm audit --audit-level=high",
