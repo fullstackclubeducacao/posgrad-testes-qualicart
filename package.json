@@ -10,6 +10,7 @@
     "start": "node packages/checkout/src/server.ts",
     "test": "node --test \"packages/checkout/test/**/*.test.ts\"",
     "test:coverage": "node --test --experimental-test-coverage \"packages/checkout/test/**/*.test.ts\"",
+    "test:coverage:lcov": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "bdd": "cucumber-js"
